@@ -1,0 +1,312 @@
+#include <reg52.h>
+#include <stdio.h>
+#include<intrins.h>
+unsigned char screen(unsigned int num);
+unsigned char scanKeyboard();//64215
+unsigned int Sound[16]={63778,63969,64140,64215,64360,64489,64603,
+	64655,64751,64837,64876,64948,65013,65070,
+	65096,65143};
+sbit speaker=P1^0;
+unsigned int music;
+unsigned char key;
+unsigned int time=0;									
+void delay(unsigned char num);
+void controlSystem();
+unsigned char meaningfulKey();
+void warning(void);
+void tone(unsigned char key);											
+unsigned int  calculate(unsigned char temp1,unsigned char temp2,unsigned char symbol);
+unsigned char keymap[4][4]=
+{
+	 {0x1, 0x2, 0x3, 0xA},
+        {0x4, 0x5, 0x6, 0xB},
+        {0x7, 0x8, 0x9, 0xC},
+        {0xE, 0x0, 0xF, 0xD}
+	};//0xE对应键盘*，0xF对应键盘#
+unsigned char dis_code[]={0x3f,0x06,0x5b,0x4f,0x66,0x6d,0x7d,0x07,0x7f,0x6f};
+void controlSystem()
+{    //这个函数相当于是一次计算的执行过程
+    unsigned char key;
+    unsigned char temp1;
+    unsigned char temp2;
+    unsigned char symbol;
+    key=scanKeyboard();    
+    
+	if(key!=0xFF)
+	{
+        if(key<=0x9)
+        {
+            temp1= key;
+            key=screen(temp1);
+
+           if(key<=0x9)
+           {
+             temp1=temp1*10+key;
+            
+             key= screen(temp1);
+             if(key<=0x9||key==0xf)
+             {
+                warning();
+             }
+             else if (0xa<=key<=0xd)
+             {
+                symbol=key;
+                key=meaningfulKey();
+                if(key<=0x9)
+                {
+                    temp2=key;
+                    
+                    key=screen(temp2);
+                    if(key<=0x9)
+                    {
+                        temp2=temp2*10+key;
+                       
+                        key= screen(temp2);
+                        if(key==0xf)
+                        {
+                             unsigned int result=calculate(temp1,symbol,temp2);
+			     key=screen(result);
+			      key=meaningfulKey();
+			   warning();
+                        }
+                        else
+                        {
+                            warning();
+                        }
+                    }
+                    else if(key==0xf)
+                {
+		   unsigned int result=calculate(temp1,symbol,temp2);
+		   key=screen(result);
+		     key=meaningfulKey();
+		warning();
+                }
+
+                }
+                
+                else 
+                {
+                    warning();
+                }
+             }
+           }
+           else if (key==0xf)
+           {
+            warning();
+           }
+           else {
+                symbol=key;
+                key=meaningfulKey();
+                if(key<=0x9)
+                {
+                    temp2=key;
+                    
+                    key=screen(temp2);
+                    if(key<=0x9)
+                    {
+                        temp2=temp2*10+key;
+                        
+                        key=screen(temp2);
+                        if(key==0xf)
+                        {
+                            unsigned int result=calculate(temp1,symbol,temp2);
+			    key=screen(result);
+			   key=meaningfulKey();
+			   warning();
+                        }
+                        else
+                        {
+                            warning();
+                        }
+                    }
+                    else if(key==0xf)
+                {
+                    unsigned int result=calculate(temp1,symbol,temp2);
+		   key=screen(result);
+		     key=meaningfulKey();
+		warning();
+                }
+
+                }
+                
+                else 
+                {
+                    warning();
+                }
+             }
+           
+        }
+        else if(key==0xE)
+        {
+            //reset,或者打算直接把reset写在scanKeyboard里了
+        }
+        else{ warning();}	
+	}
+	else{
+	   P1 &=0x00;
+	}
+}
+ unsigned char meaningfulKey()
+ {
+    unsigned char key;
+    while(1)
+    {
+        key=scanKeyboard();
+        if(key!=0xff)
+        {
+           return key;
+					
+        }
+				
+    }
+ }
+unsigned char scanKeyboard()
+{ 
+	unsigned char row,col;
+	P0=0x0f;//p0.0到p0.3设为高电平
+	for (row = 0; row < 4; row++) {
+        P0 = ~(0x01 << row);
+        for (col = 0; col < 4; col++) {
+            if (!(P0 & (0x10 << col))) { 
+                delay(400); 
+                if (!(P0 & (0x10 << col))) { 
+		    music=Sound[keymap[row][col]];
+		     TR0=1;
+		  delay(500);
+		     TR0=0;
+                    return keymap[row][col];
+                }
+            }
+        }
+    }
+    return 0xff; 
+}
+
+
+
+void delay(unsigned char num)    
+{    
+    unsigned int i, j;   
+   for(i=0;i<num;i++)
+   {
+        for (j = 0; j < 125; j++);    
+}
+}
+unsigned int calculate(unsigned char temp1,unsigned char symbol,unsigned char temp2)
+{
+      unsigned int result;
+   if(temp2==0)
+   {
+      warning();
+    }
+
+   switch(symbol)
+   {
+      case 0xa: result=temp1+temp2; break;
+      case 0xb: result=temp1-temp2;break;
+      case 0xc: result=temp1*temp2;break;
+      case 0xd: result=temp1/temp2; break;
+    }
+    if(result<0)
+    {
+       warning();
+      }
+      else{
+	 return result;
+	 }
+  
+}
+
+unsigned char screen(unsigned int num)
+{//把数字显示在屏幕上（符号没有合适表示方式）
+// dis_code[]={0xc0,0xf9,0xa4,0xb0,0x99,0x92,0x82,0xf8,0x80,0x90}
+unsigned char display[4];
+unsigned char i,h,count;
+unsigned char tempz;
+ unsigned char key; 
+if(num<10)
+{
+display[0]=dis_code[num];
+display[1]=0xff;
+display[2]=0xff;
+display[3]=0xff;
+count=1;
+}
+    else if (num < 100)
+    {
+        unsigned char num1 = (num / 10) % 10;
+        display[0] = dis_code[num1];
+        display[1] = dis_code[num - 10 * num1];
+        display[2] = 0xff;
+        display[3] = 0xff;
+        count = 2;
+    }
+    else if (num < 1000)
+    {
+   
+        display[0] = dis_code[num/100%10];
+        display[1] = dis_code[num/10%10];
+        display[2] = dis_code[num%10];
+        display[3] = 0xff;
+        count = 3;
+    }
+    else if (num < 10000)
+    {
+
+        display[0] = dis_code[(num/1000)%10];
+        display[1] = dis_code[(num/100)%10];
+        display[2] = dis_code[(num/10)%10];
+        display[3] = dis_code[num%10];
+        count = 4;
+    }
+  
+  //  for(h=0;h<200;h++)
+while(1)
+    {
+         tempz=0xfe;
+    for(i=0;i<count;i++)
+    {  
+        P3=tempz;
+        tempz=_crol_(tempz,1);
+        P2=display[i];
+       delay(10);
+		
+    }
+    key=scanKeyboard();
+    if(key!=0xff)
+    {
+       P3=0xff;
+        return key;
+       }
+       }
+       
+    }
+
+void warning()
+{//蜂鸣器警告
+P1=0x80;
+}
+
+void main(void)
+{	
+   P0=0xf0;
+	
+	TMOD |=0x01;
+	ET0=1;
+	EA=1;
+	TR0=0;
+while(1)
+{
+   controlSystem();
+	//TR0=0;
+  
+}
+}
+
+	void timer() interrupt 1
+{
+	TH0=music/256;
+	TL0=music%256;
+
+	speaker=~speaker;
+}
